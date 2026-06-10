@@ -17,25 +17,10 @@ st.title("Analisador Avançado e Filtragem FIR de Áudio")
 
 @st.cache_data
 def load_and_process_audio(uploaded_file):
-    """Lê o áudio de forma segura e previne quedas no servidor da nuvem."""
-    import warnings
-    
-    # 1. Blindagem contra metadados: Suprime o aviso para ele não poluir o sistema
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        fs, data = wavfile.read(uploaded_file)
-    
-    # 2. Trava de Segurança de Memória (Evita o site cair no Streamlit Cloud)
-    # Limita o processamento aos primeiros 30 segundos do áudio
-    max_duration = 30 
-    if len(data) > max_duration * fs:
-        data = data[:max_duration * fs]
-        st.warning(f"⚠️ Áudio muito longo! Para proteger o servidor e o site não cair, a análise foi limitada aos primeiros {max_duration} segundos.")
-        
-    # 3. Converte estéreo para mono
+    """Lê o áudio e faz cache do vetor original para evitar reprocessamento."""
+    fs, data = wavfile.read(uploaded_file)
     if len(data.shape) > 1:
-        data = data.mean(axis=1) 
-        
+        data = data.mean(axis=1) # Converte estéreo para mono
     return fs, sp.normalize_signal(data)
 
 @st.cache_data
