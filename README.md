@@ -27,10 +27,12 @@ Esta aplicação permite ao usuário:
 1. **Carregar** um arquivo de áudio no formato `.wav`.
 2. **Visualizar** o sinal no domínio do tempo e no domínio da frequência (via FFT).
 3. **Analisar** o espectrograma (STFT) para compreender a distribuição tempo-frequência.
-4. **Projetar e aplicar** filtros digitais FIR (Passa-baixa ou Passa-alta) com janela de Hamming.
-5. **Comparar** o sinal original com o sinal filtrado, tanto no domínio do tempo quanto no da frequência.
-6. **Ouvir** o resultado da filtragem diretamente no navegador.
-7. **Avaliar** a qualidade da filtragem por meio da métrica **SNR (Relação Sinal-Ruído)** em dB.
+4. **Projetar** filtros digitais FIR (Passa-baixa ou Passa-alta) com janela de Hamming, escolhendo a frequência de corte e a ordem do filtro.
+5. **Inspecionar** a resposta ao impulso `h[n]` e a resposta em frequência `|H(ω)|` do filtro projetado antes de aplicá-lo.
+6. **Comparar** o efeito de diferentes ordens de filtro (51 a 251 coeficientes) sobre a nitidez da transição espectral.
+7. **Aplicar** a filtragem e comparar o sinal original com o filtrado, tanto no domínio do tempo quanto no da frequência.
+8. **Avaliar** a qualidade da filtragem por meio do **Índice de Preservação do Sinal** em dB.
+9. **Ouvir** o resultado da filtragem diretamente no navegador e **baixar** o arquivo `.wav` filtrado.
 
 ---
 
@@ -65,7 +67,7 @@ Um filtro FIR possui uma resposta ao impulso de duração finita. A saída é ca
 $$y[n] = \sum_{k=0}^{M-1} h[k] \cdot x[n-k]$$
 
 Onde:
-- `h[k]` são os coeficientes (taps) do filtro.
+- `h[k]` são os coeficientes (taps) do filtro — equivalentes à resposta ao impulso `h[n]` do sistema LTI.
 - `M` é a ordem do filtro (número de coeficientes).
 - A operação é uma **convolução discreta**.
 
@@ -80,21 +82,29 @@ O projeto do filtro utiliza a **janela de Hamming** para suavizar os coeficiente
 
 $$w[n] = 0.54 - 0.46 \cdot \cos\left(\frac{2\pi n}{M-1}\right)$$
 
+### Resposta em Frequência H(ω)
+
+A resposta em frequência de um filtro FIR é obtida pela DTFT da resposta ao impulso `h[n]`:
+
+$$H(\omega) = \sum_{n=0}^{M-1} h[n] \cdot e^{-j\omega n}$$
+
+A aplicação exibe `|H(ω)|` em dB com marcadores de referência na frequência de corte projetada e no ponto de -3 dB (frequência de corte real), permitindo verificar visualmente a qualidade do projeto do filtro.
+
 ### Espectrograma (STFT)
 
 O espectrograma é obtido pela **Short-Time Fourier Transform (STFT)**, que aplica a FFT em janelas deslizantes ao longo do sinal, revelando como as frequências variam ao longo do tempo.
 
-### Relação Sinal-Ruído (SNR)
+### Índice de Preservação do Sinal
 
-A SNR quantifica a eficácia da filtragem, medida em decibéis (dB):
+A métrica calculada pela aplicação quantifica o quanto a filtragem preservou o conteúdo espectral do sinal, medida em decibéis (dB):
 
-$$\text{SNR}_{dB} = 10 \cdot \log_{10}\left(\frac{P_{\text{sinal}}}{P_{\text{ruído}}}\right)$$
+$$\text{IPS}_{dB} = 10 \cdot \log_{10}\left(\frac{P_{\text{filtrado}}}{P_{\text{removido}}}\right)$$
 
 Onde:
-- `P_sinal` = potência média do sinal filtrado.
-- `P_ruído` = potência média da diferença entre o sinal original e o filtrado (ruído removido).
+- `P_filtrado` = potência média do sinal após a filtragem.
+- `P_removido` = potência média da diferença entre o sinal original e o filtrado.
 
-Um valor alto de SNR indica que o filtro preservou a maior parte da energia útil do sinal.
+> **Nota:** Esta métrica não representa o SNR tradicional (sinal vs. ruído de fundo captado). Ela mede o quanto o filtro alterou o sinal original. Valores altos indicam que a filtragem preservou a maior parte da energia; valores baixos são esperados quando o filtro remove uma faixa espectral significativa (ex.: passa-alta com frequência de corte alta).
 
 ---
 
@@ -103,34 +113,38 @@ Um valor alto de SNR indica que o filtro preservou a maior parte da energia úti
 A aplicação segue uma arquitetura em **duas camadas** com separação clara de responsabilidades:
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   app.py (Camada UI)                │
-│  ┌───────────────┐  ┌────────────┐  ┌────────────┐ │
-│  │  Upload .wav   │  │  Controles │  │ Visualização│ │
-│  │  st.file_uplo- │  │  Sliders & │  │ Matplotlib  │ │
-│  │  ader()        │  │  Selectbox │  │ + st.audio  │ │
-│  └───────┬───────┘  └─────┬──────┘  └──────▲─────┘ │
-│          │                │                 │       │
-│          │    ┌───────────▼─────────┐       │       │
-│          │    │  Cache (st.cache)   │       │       │
-│          │    └───────────┬─────────┘       │       │
-└──────────┼────────────────┼─────────────────┼───────┘
-           │                │                 │
-           ▼                ▼                 │
-┌─────────────────────────────────────────────┼───────┐
-│        signal_processing.py (Camada Lógica) │       │
-│  ┌────────────────┐  ┌──────────────────┐   │       │
-│  │normalize_signal│  │  apply_fir_filter │───┘       │
-│  │  compute_fft   │  │  calculate_snr   │           │
-│  └────────────────┘  └──────────────────┘           │
-│              NumPy + SciPy                          │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                     app.py (Camada UI)                       │
+│  ┌─────────────┐  ┌─────────────────────┐  ┌─────────────┐  │
+│  │ Upload .wav  │  │ Controles Interativos│  │Visualização │  │
+│  │             │  │ Tipo | Corte | Ordem │  │ Matplotlib  │  │
+│  └──────┬──────┘  └──────────┬──────────┘  └──────▲──────┘  │
+│         │                    │                     │         │
+│         │     ┌──────────────▼──────────────┐      │         │
+│         │     │  Cache (st.cache_data)       │      │         │
+│         │     │  load_and_process_audio      │      │         │
+│         │     │  get_filter_design           │      │         │
+│         │     │  process_filter              │      │         │
+│         │     └──────────────┬──────────────┘      │         │
+└─────────┼────────────────────┼─────────────────────┼─────────┘
+          │                    │                     │
+          ▼                    ▼                     │
+┌──────────────────────────────────────────────────────────────┐
+│            signal_processing.py (Camada Lógica)              │
+│  ┌──────────────────┐        ┌──────────────────────────┐    │
+│  │ normalize_signal │        │     design_fir_filter    │    │
+│  │ compute_fft      │        │     apply_fir_filter     ├────┘
+│  │                  │        │ compute_frequency_response│
+│  └──────────────────┘        │     calculate_snr        │
+│                              └──────────────────────────┘
+│                         NumPy + SciPy                        │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 | Camada | Arquivo | Responsabilidade |
 |---|---|---|
-| **Interface (UI)** | `app.py` | Upload de arquivos, controles interativos, renderização de gráficos e reprodução de áudio |
-| **Lógica Matemática** | `signal_processing.py` | Normalização, FFT, projeto de filtros FIR, convolução e cálculo de SNR |
+| **Interface (UI)** | `app.py` | Upload de arquivos, controles interativos, renderização de gráficos, reprodução e download de áudio |
+| **Lógica Matemática** | `signal_processing.py` | Normalização, FFT, projeto e aplicação de filtros FIR, resposta em frequência e cálculo do índice de preservação |
 
 ---
 
@@ -186,20 +200,27 @@ Clique em **"Browse files"** e selecione um arquivo `.wav`. A aplicação aceita
 
 ### Passo 2 — Analisar o sinal original
 Após o upload, a aplicação exibe automaticamente:
+- **Reprodução de áudio:** Player direto no navegador.
 - **Gráfico Temporal:** Amplitude × Tempo do sinal completo.
 - **Gráfico Espectral (FFT):** Magnitude × Frequência, mostrando as componentes de frequência presentes.
 - **Espectrograma (STFT):** Mapa de calor mostrando a evolução das frequências ao longo do tempo.
 
 ### Passo 3 — Projetar o filtro
-Configure os parâmetros do filtro FIR:
+Configure os parâmetros do filtro FIR na Seção 2:
 - **Tipo:** `Passa-baixa` (atenua frequências acima do corte) ou `Passa-alta` (atenua frequências abaixo do corte).
 - **Frequência de Corte:** Ajuste com o slider (100 Hz até `fs/2 - 100` Hz).
+- **Ordem do Filtro:** Selecione o número de coeficientes (51, 101, 151, 201 ou 251). Ordens maiores produzem uma transição espectral mais abrupta ao custo de maior processamento.
+
+Ao alterar qualquer parâmetro, a aplicação atualiza automaticamente:
+- **`|H(ω)|` em dB:** Resposta em frequência do filtro projetado, com marcadores em -3 dB e na frequência de corte configurada.
+- **`h[n]`:** Resposta ao impulso discreta — os próprios coeficientes do filtro FIR.
 
 ### Passo 4 — Avaliar o resultado
-A aplicação exibe:
-- O valor de **SNR** em dB (qualidade da filtragem).
+A Seção 3 exibe:
+- O **Índice de Preservação do Sinal** em dB (quanto do sinal foi mantido após a filtragem).
 - Gráficos do sinal filtrado no domínio do tempo e da frequência.
-- O **áudio filtrado**, disponível para reprodução direta no navegador.
+- O **áudio filtrado** para reprodução direta no navegador.
+- Botão **"⬇️ Baixar Áudio Filtrado (.wav)"** para salvar o resultado localmente.
 
 ---
 
@@ -220,12 +241,12 @@ signal-processing-app/
 ### `signal_processing.py`
 
 #### `normalize_signal(data)`
-Normaliza a amplitude do sinal para o intervalo `[-1, 1]`, prevenindo distorções (clipping).
+Converte o array para `float64` e normaliza a amplitude para o intervalo `[-1, 1]`, prevenindo distorções (clipping) e garantindo compatibilidade com sinais de entrada inteiros (`int16`, `int32`) ou de ponto flutuante.
 
 | Parâmetro | Tipo | Descrição |
 |---|---|---|
-| `data` | `np.ndarray` | Vetor com as amostras do sinal |
-| **Retorno** | `np.ndarray` | Sinal normalizado |
+| `data` | `np.ndarray` | Vetor com as amostras do sinal (qualquer dtype numérico) |
+| **Retorno** | `np.ndarray (float64)` | Sinal normalizado no intervalo `[-1, 1]` |
 
 ---
 
@@ -240,8 +261,21 @@ Calcula a FFT do sinal e retorna apenas as frequências positivas e suas magnitu
 
 ---
 
+#### `design_fir_filter(fs, cutoff, filter_type, numtaps=101)`
+Projeta o filtro FIR com janela de Hamming e retorna os coeficientes `h[n]`. Separado de `apply_fir_filter` para permitir cache e visualização independentes da filtragem.
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `fs` | `int` | Frequência de amostragem (Hz) |
+| `cutoff` | `float` | Frequência de corte (Hz) |
+| `filter_type` | `str` | `"Passa-baixa"` ou `"Passa-alta"` |
+| `numtaps` | `int` | Número de coeficientes do filtro (default: 101) |
+| **Retorno** | `np.ndarray` | Vetor de coeficientes `h[n]` do filtro FIR |
+
+---
+
 #### `apply_fir_filter(data, fs, cutoff, filter_type, numtaps=101)`
-Projeta e aplica um filtro FIR usando janelamento de Hamming. A filtragem utiliza `scipy.signal.filtfilt` para obter **fase zero** (sem distorção de fase).
+Aplica o filtro FIR ao sinal usando `scipy.signal.filtfilt` para **filtragem de fase zero** (passa o sinal nos dois sentidos, eliminando distorção de fase). Internamente chama `design_fir_filter` para manter o projeto centralizado.
 
 | Parâmetro | Tipo | Descrição |
 |---|---|---|
@@ -250,32 +284,41 @@ Projeta e aplica um filtro FIR usando janelamento de Hamming. A filtragem utiliz
 | `cutoff` | `float` | Frequência de corte (Hz) |
 | `filter_type` | `str` | `"Passa-baixa"` ou `"Passa-alta"` |
 | `numtaps` | `int` | Número de coeficientes do filtro (default: 101) |
-| **Retorno** | `np.ndarray` | Sinal filtrado |
+| **Retorno** | `np.ndarray` | Sinal filtrado com fase zero |
 
-**Detalhes da implementação:**
-1. Normaliza a frequência de corte pela frequência de Nyquist (`fs / 2`).
-2. Projeta os coeficientes com `scipy.signal.firwin` e janela de Hamming.
-3. Aplica filtragem forward-backward com `filtfilt` para eliminar atraso de fase.
+---
+
+#### `compute_frequency_response(taps, fs)`
+Calcula a resposta em frequência `H(ω)` do filtro FIR em dB, usando 8192 pontos para alta resolução espectral.
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `taps` | `np.ndarray` | Coeficientes `h[n]` do filtro FIR |
+| `fs` | `int` | Frequência de amostragem (Hz) |
+| **Retorno** | `tuple(np.ndarray, np.ndarray)` | `(frequências em Hz, magnitude em dB)` |
 
 ---
 
 #### `calculate_snr(original, filtered)`
-Calcula a Relação Sinal-Ruído entre o sinal original e o filtrado.
+Calcula o Índice de Preservação do Sinal entre o sinal original e o filtrado.
 
 | Parâmetro | Tipo | Descrição |
 |---|---|---|
 | `original` | `np.ndarray` | Sinal antes da filtragem |
 | `filtered` | `np.ndarray` | Sinal após a filtragem |
-| **Retorno** | `float` | SNR em decibéis (dB). Retorna `inf` se não houver ruído removido. |
+| **Retorno** | `float` | Índice em dB. Retorna `inf` se o filtro não alterou o sinal. |
 
 ---
 
 ### `app.py`
 
 #### `load_and_process_audio(uploaded_file)` — `@st.cache_data`
-Lê o arquivo `.wav`, converte estéreo para mono (se necessário) e normaliza. O resultado é armazenado em cache pelo Streamlit para evitar reprocessamento a cada interação do usuário.
+Lê o arquivo `.wav`, converte estéreo para mono (se necessário) e normaliza para `float64`. O resultado é armazenado em cache pelo Streamlit para evitar reprocessamento a cada interação.
 
-#### `process_filter(data, fs, cutoff, filter_type)` — `@st.cache_data`
+#### `get_filter_design(fs, cutoff, filter_type, numtaps)` — `@st.cache_data`
+Wrapper cacheado para `design_fir_filter`. Permite que a resposta ao impulso e a resposta em frequência sejam renderizadas sem recalcular os coeficientes a cada rerun do Streamlit.
+
+#### `process_filter(data, fs, cutoff, filter_type, numtaps)` — `@st.cache_data`
 Wrapper cacheado para a filtragem FIR. Evita recalcular a convolução (operação computacionalmente pesada) quando os parâmetros não mudam.
 
 #### `plot_spectrogram(data, fs)`
@@ -283,6 +326,12 @@ Gera o espectrograma (análise tempo-frequência) usando `scipy.signal.spectrogr
 
 #### `plot_signal(x, y, title, xlabel, ylabel)`
 Função utilitária para renderizar gráficos 2D padronizados com `matplotlib`.
+
+#### `plot_frequency_response(taps, fs, cutoff)`
+Plota `|H(ω)|` em dB com dois marcadores de referência: linha horizontal em -3 dB (ponto de corte real) e linha vertical na frequência de corte projetada.
+
+#### `plot_impulse_response(taps)`
+Plota a resposta ao impulso discreta `h[n]` usando `stem`. Para filtros FIR, os coeficientes retornados por `firwin` são exatamente `h[n]`.
 
 ---
 
@@ -294,35 +343,48 @@ O fluxo completo de processamento dos dados segue a seguinte ordem:
 Upload .wav
     │
     ▼
-┌──────────────────────┐
-│ 1. Leitura do áudio  │  scipy.io.wavfile.read()
-│ 2. Conversão → Mono  │  Se estéreo: média dos canais
-│ 3. Normalização      │  data / max(|data|) → [-1, 1]
-└──────────┬───────────┘
-           │
-     ┌─────┴──────┐
-     ▼            ▼
-┌─────────┐  ┌──────────┐
-│  FFT    │  │  STFT    │
-│ np.fft  │  │ spectro- │
-│         │  │ gram()   │
-└────┬────┘  └────┬─────┘
-     │            │
-     ▼            ▼
-  Gráfico     Espectrograma
-  Espectral   Tempo-Frequência
-           │
-           ▼
-┌─────────────────────────┐
-│ 4. Projeto Filtro FIR   │  firwin() + Hamming
-│ 5. Filtragem (filtfilt) │  Fase zero
-│ 6. Cálculo SNR          │  10·log10(Ps/Pn) dB
-└──────────┬──────────────┘
-           │
-     ┌─────┴──────┐
-     ▼            ▼
-  Gráfico      Reprodução
-  Filtrado     do Áudio
+┌───────────────────────────┐
+│ 1. Leitura do áudio       │  scipy.io.wavfile.read()
+│ 2. Conversão → Mono       │  Se estéreo: média dos canais
+│ 3. Cast → float64         │  data.astype(np.float64)
+│ 4. Normalização           │  data / max(|data|) → [-1, 1]
+└─────────────┬─────────────┘
+              │
+     ┌────────┴────────┐
+     ▼                 ▼
+┌─────────┐      ┌──────────┐
+│   FFT   │      │   STFT   │
+│ np.fft  │      │ spectro- │
+│         │      │ gram()   │
+└────┬────┘      └────┬─────┘
+     │                │
+     ▼                ▼
+ Espectro        Espectrograma
+ (FFT)           Tempo-Frequência
+              │
+              ▼
+┌─────────────────────────────────┐
+│ 5. Projeto do Filtro FIR        │  firwin() + Hamming → h[n]
+│    design_fir_filter()          │
+├─────────────────────────────────┤
+│          ┌──────────┐           │
+│          ▼          ▼           │
+│  compute_frequency  h[n]        │
+│  _response() → H(ω)             │
+│  Gráfico |H(ω)| dB  Gráfico h[n]│
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ 6. Filtragem (filtfilt)         │  Fase zero — sem distorção
+│ 7. np.clip(filtered, -1, 1)     │  Proteção contra clipping
+│ 8. Cálculo IPS                  │  10·log10(Ps/Pn) dB
+└──────────────┬──────────────────┘
+               │
+      ┌────────┴────────┐
+      ▼                 ▼
+  Gráfico           Reprodução
+  Filtrado          + Download .wav
 ```
 
 ---
@@ -334,8 +396,8 @@ Upload .wav
 | [**Python**](https://www.python.org/) | ≥ 3.8 | Linguagem de programação |
 | [**Streamlit**](https://streamlit.io/) | Latest | Framework web para dashboards interativos |
 | [**NumPy**](https://numpy.org/) | Latest | Computação numérica vetorizada e FFT |
-| [**SciPy**](https://scipy.org/) | Latest | Projeto de filtros FIR, leitura de `.wav` e espectrograma |
-| [**Matplotlib**](https://matplotlib.org/) | Latest | Visualização de gráficos e espectrogramas |
+| [**SciPy**](https://scipy.org/) | Latest | Projeto de filtros FIR (`firwin`, `filtfilt`, `freqz`), leitura de `.wav` e espectrograma |
+| [**Matplotlib**](https://matplotlib.org/) | Latest | Visualização de gráficos, espectrogramas e resposta ao impulso |
 
 ---
 
