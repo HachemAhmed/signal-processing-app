@@ -68,7 +68,7 @@ $$y[n] = \sum_{k=0}^{M-1} h[k] \cdot x[n-k]$$
 
 Onde:
 - `h[k]` são os coeficientes (taps) do filtro — equivalentes à resposta ao impulso `h[n]` do sistema LTI.
-- `M` é a ordem do filtro (número de coeficientes).
+- `M` é o número de coeficientes (taps) do filtro; a ordem do filtro é `M − 1`.
 - A operação é uma **convolução discreta**.
 
 **Vantagens dos filtros FIR:**
@@ -88,7 +88,7 @@ A resposta em frequência de um filtro FIR é obtida pela DTFT da resposta ao im
 
 $$H(\omega) = \sum_{n=0}^{M-1} h[n] \cdot e^{-j\omega n}$$
 
-A aplicação exibe `|H(ω)|` em dB com marcadores de referência na frequência de corte projetada e no ponto de -3 dB (frequência de corte real), permitindo verificar visualmente a qualidade do projeto do filtro.
+A aplicação exibe `|H(ω)|` em dB com dois marcadores: uma linha vertical na frequência de corte de projeto e uma linha horizontal de referência em -3 dB. Vale lembrar que o `firwin` define a frequência de corte no ponto de meia amplitude (-6 dB); por isso, no gráfico, a curva cruza a frequência de projeto em torno de -6 dB, enquanto a linha de -3 dB serve apenas como nível de referência.
 
 ### Espectrograma (STFT)
 
@@ -161,7 +161,7 @@ A aplicação segue uma arquitetura em **duas camadas** com separação clara de
 ### 1. Clonar o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/signal-processing-app.git
+git clone https://github.com/HachemAhmed/signal-processing-app.git
 cd signal-processing-app
 ```
 
@@ -328,7 +328,7 @@ Gera o espectrograma (análise tempo-frequência) usando `scipy.signal.spectrogr
 Função utilitária para renderizar gráficos 2D padronizados com `matplotlib`.
 
 #### `plot_frequency_response(taps, fs, cutoff)`
-Plota `|H(ω)|` em dB com dois marcadores de referência: linha horizontal em -3 dB (ponto de corte real) e linha vertical na frequência de corte projetada.
+Plota `|H(ω)|` em dB com dois marcadores: linha horizontal de referência em -3 dB e linha vertical na frequência de corte de projeto. Como o `firwin` adota a convenção de -6 dB para o corte, a curva cruza a frequência de projeto em torno de -6 dB.
 
 #### `plot_impulse_response(taps)`
 Plota a resposta ao impulso discreta `h[n]` usando `stem`. Para filtros FIR, os coeficientes retornados por `firwin` são exatamente `h[n]`.
