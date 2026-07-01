@@ -4,6 +4,16 @@ from scipy.io import wavfile
 from scipy import signal
 import matplotlib.pyplot as plt
 import io
+import os
+from pathlib import Path
+
+# ==========================================
+# CONFIGURAÇÃO: PASTA DE IMAGENS
+# ==========================================
+IMAGES_DIR = Path(__file__).parent / "images"
+IMAGES_DIR.mkdir(exist_ok=True)
+
+SAVE_DPI = 300
 
 # Importando nossa camada de lógica matemática
 import signal_processing as sp
@@ -40,6 +50,12 @@ def process_filter(data, fs, cutoff, filter_type, numtaps):
 # FUNÇÕES DE RENDERIZAÇÃO
 # ==========================================
 
+def save_figure(fig, filename):
+    """Salva uma figura matplotlib na pasta images/ com alta resolução."""
+    filepath = IMAGES_DIR / filename
+    fig.savefig(filepath, dpi=SAVE_DPI, bbox_inches='tight')
+
+
 def plot_spectrogram(data, fs):
     """Gera a Análise de Tempo-Frequência (STFT)."""
     fig, ax = plt.subplots(figsize=(10, 3))
@@ -49,10 +65,11 @@ def plot_spectrogram(data, fs):
     ax.set_xlabel('Tempo [s]')
     ax.set_title('Espectrograma (STFT)')
     fig.colorbar(cax, ax=ax, label='Intensidade [dB]')
+    save_figure(fig, "espectrograma_stft.png")
     return fig
 
 
-def plot_signal(x, y, title, xlabel, ylabel):
+def plot_signal(x, y, title, xlabel, ylabel, save_filename=None):
     """Plota um sinal genérico no domínio do tempo ou frequência."""
     fig, ax = plt.subplots(figsize=(10, 3))
     ax.plot(x, y, color='#1f77b4', linewidth=0.8)
@@ -60,10 +77,12 @@ def plot_signal(x, y, title, xlabel, ylabel):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.grid(True, linestyle='--', alpha=0.6)
+    if save_filename:
+        save_figure(fig, save_filename)
     return fig
 
 
-def plot_frequency_response(taps, fs, cutoff):
+def plot_frequency_response(taps, fs, cutoff, filter_type_slug):
     """
     Plota a resposta em frequência |H(ω)| em dB.
     Inclui marcadores de referência: linha de -3 dB (frequência de corte real)
@@ -80,10 +99,11 @@ def plot_frequency_response(taps, fs, cutoff):
     ax.set_ylim([-90, 5])
     ax.legend()
     ax.grid(True, linestyle='--', alpha=0.6)
+    save_figure(fig, f"resposta_frequencia_filtro_{filter_type_slug}_{cutoff}hz.png")
     return fig
 
 
-def plot_impulse_response(taps):
+def plot_impulse_response(taps, filter_type_slug, cutoff):
     """
     Plota a resposta ao impulso discreta h[n] do filtro FIR.
     Para filtros FIR, os coeficientes do firwin são exatamente h[n].
@@ -95,6 +115,7 @@ def plot_impulse_response(taps):
     ax.set_xlabel('Amostra [n]')
     ax.set_ylabel('Amplitude')
     ax.grid(True, linestyle='--', alpha=0.6)
+    save_figure(fig, f"resposta_impulso_fir_{filter_type_slug}_{cutoff}hz.png")
     return fig
 
 
@@ -120,10 +141,18 @@ if uploaded_file is not None:
 
         col1, col2 = st.columns(2)
         with col1:
-            st.pyplot(plot_signal(t, data, "Domínio do Tempo", "Tempo [s]", "Amplitude"))
+            st.pyplot(plot_signal(
+                t, data,
+                "Domínio do Tempo", "Tempo [s]", "Amplitude",
+                save_filename="sinal_original_dominio_tempo.png"
+            ))
         with col2:
             freqs, mag = sp.compute_fft(data, fs)
-            st.pyplot(plot_signal(freqs, mag, "Domínio da Frequência (FFT)", "Frequência [Hz]", "Magnitude"))
+            st.pyplot(plot_signal(
+                freqs, mag,
+                "Domínio da Frequência (FFT)", "Frequência [Hz]", "Magnitude",
+                save_filename="sinal_original_espectro_fft.png"
+            ))
 
         st.pyplot(plot_spectrogram(data, fs))
 
@@ -153,12 +182,13 @@ if uploaded_file is not None:
 
         # Obtém os coeficientes h[n] do filtro projetado (cacheado separadamente)
         taps = get_filter_design(fs, cutoff, filter_type, numtaps)
+        filter_type_slug = filter_type.lower().replace('-', '_').replace(' ', '_')
 
         col_fir1, col_fir2 = st.columns(2)
         with col_fir1:
-            st.pyplot(plot_frequency_response(taps, fs, cutoff))
+            st.pyplot(plot_frequency_response(taps, fs, cutoff, filter_type_slug))
         with col_fir2:
-            st.pyplot(plot_impulse_response(taps))
+            st.pyplot(plot_impulse_response(taps, filter_type_slug, cutoff))
 
         st.markdown("---")
 
@@ -177,10 +207,18 @@ if uploaded_file is not None:
 
         col_r1, col_r2 = st.columns(2)
         with col_r1:
-            st.pyplot(plot_signal(t, filtered_data, f"Sinal Filtrado ({filter_type})", "Tempo [s]", "Amplitude"))
+            st.pyplot(plot_signal(
+                t, filtered_data,
+                f"Sinal Filtrado ({filter_type})", "Tempo [s]", "Amplitude",
+                save_filename=f"sinal_filtrado_{filter_type_slug}_{cutoff}hz_dominio_tempo.png"
+            ))
         with col_r2:
             f_freqs, f_mag = sp.compute_fft(filtered_data, fs)
-            st.pyplot(plot_signal(f_freqs, f_mag, "Espectro Pós-Filtro", "Frequência [Hz]", "Magnitude"))
+            st.pyplot(plot_signal(
+                f_freqs, f_mag,
+                "Espectro Pós-Filtro", "Frequência [Hz]", "Magnitude",
+                save_filename=f"sinal_filtrado_{filter_type_slug}_{cutoff}hz_espectro_fft.png"
+            ))
 
         # Fix: np.clip antes da conversão para int16 evita clipping silencioso
         # causado por transientes do filtfilt nas bordas do sinal.
