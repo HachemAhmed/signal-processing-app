@@ -18,7 +18,7 @@ SAVE_DPI = 300
 # Importando nossa camada de lógica matemática
 import signal_processing as sp
 
-st.set_page_config(page_title="Processador de Sinais LTI Avançado", layout="wide")
+st.set_page_config(page_title="Processador de Sinais LTI Avançado", layout="wide", initial_sidebar_state="expanded")
 st.title("Analisador Avançado e Filtragem FIR de Áudio")
 
 # ==========================================
@@ -69,13 +69,15 @@ def plot_spectrogram(data, fs):
     return fig
 
 
-def plot_signal(x, y, title, xlabel, ylabel, save_filename=None):
+def plot_signal(x, y, title, xlabel, ylabel, save_filename=None, xlim=None):
     """Plota um sinal genérico no domínio do tempo ou frequência."""
     fig, ax = plt.subplots(figsize=(10, 3))
     ax.plot(x, y, color='#1f77b4', linewidth=0.8)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    if xlim is not None:
+        ax.set_xlim(xlim)
     ax.grid(True, linestyle='--', alpha=0.6)
     if save_filename:
         save_figure(fig, save_filename)
@@ -131,6 +133,20 @@ if uploaded_file is not None:
         N = len(data)
         t = np.arange(N) / fs
 
+        with st.sidebar:
+            st.header("⚙️ Configurações de Visualização")
+            nyquist = int(fs / 2)
+            default_limit = min(8000, nyquist)
+            max_freq_limit = st.slider(
+                "Limite do Eixo X (FFT) [Hz]",
+                min_value=1000,
+                max_value=nyquist,
+                value=default_limit,
+                step=500,
+                help="Ajusta o limite de frequência exibido nos gráficos de espectro FFT para focar nas faixas de maior energia."
+            )
+            st.caption(f"ℹ️ Frequência de Nyquist (máxima do áudio): **{nyquist} Hz**")
+
         # ---- Seção 1: Análise do Sinal Original ----
         st.subheader("1. Análise do Sinal Original")
 
@@ -151,7 +167,8 @@ if uploaded_file is not None:
             st.pyplot(plot_signal(
                 freqs, mag,
                 "Domínio da Frequência (FFT)", "Frequência [Hz]", "Magnitude",
-                save_filename="sinal_original_espectro_fft.png"
+                save_filename="sinal_original_espectro_fft.png",
+                xlim=(0, max_freq_limit)
             ))
 
         st.pyplot(plot_spectrogram(data, fs))
@@ -217,7 +234,8 @@ if uploaded_file is not None:
             st.pyplot(plot_signal(
                 f_freqs, f_mag,
                 "Espectro Pós-Filtro", "Frequência [Hz]", "Magnitude",
-                save_filename=f"sinal_filtrado_{filter_type_slug}_{cutoff}hz_espectro_fft.png"
+                save_filename=f"sinal_filtrado_{filter_type_slug}_{cutoff}hz_espectro_fft.png",
+                xlim=(0, max_freq_limit)
             ))
 
         # Fix: np.clip antes da conversão para int16 evita clipping silencioso
