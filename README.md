@@ -492,19 +492,19 @@ Upload .wav
                   │
                   ▼
 ┌────────────────────────────────┐
-│ 5. design_fir_filter()        │
-│    firwin() + Hamming → h[n]  │
+│ 5. design_fir_filter()         │
+│    firwin() + Hamming → h[n]   │
 ├────────────────┬───────────────┤
 │                ▼               │
-│  compute_frequency_response() │
-│  → |H(ω)| em dB               │
+│  compute_frequency_response()  │
+│  → |H(ω)| em dB                │
 └────────────────┬───────────────┘
                  │
                  ▼
 ┌────────────────────────────────┐
-│ 6. apply_fir_filter()         │
+│ 6. apply_fir_filter()          │
 │    filtfilt → fase zero        │
-│ 7. np.clip(filtered, -1, 1)   │  Anti-clipping
+│ 7. np.clip(filtered, -1, 1)    │  Anti-clipping
 │ 8. calculate_snr()             │  IPS em dB
 └────────────────┬───────────────┘
                  │
