@@ -161,44 +161,44 @@ Essa separação garante que mudanças na interface (layout, cores, componentes)
 
 ```
  ╔══════════════════════════════════════════════════════════════╗
- ║                    app.py  ·  Camada de UI                  ║
- ║                                                             ║
- ║   Entrada do usuário          Cache Streamlit               ║
- ║  ┌─────────────────────┐    ┌──────────────────────────┐   ║
- ║  │  st.file_uploader   │    │  @st.cache_data          │   ║
- ║  │  (Upload .wav)      │───▶│  load_and_process_audio  │   ║
- ║  └─────────────────────┘    │  get_filter_design       │   ║
- ║                             │  process_filter          │   ║
- ║  ┌─────────────────────┐    └────────────┬─────────────┘   ║
- ║  │  st.sidebar         │                 │                  ║
- ║  │  Tipo de Filtro     │                 │ chama            ║
- ║  │  Frequência de Corte│                 ▼                  ║
- ║  │  Nº de Coeficientes │    ┌──────────────────────────┐   ║
- ║  └─────────────────────┘    │  Matplotlib / st.pyplot  │   ║
- ║                             │  Gráficos + Espectrograma │   ║
- ║                             │  Player + Download .wav  │   ║
- ║                             └──────────────────────────┘   ║
- ╚════════════════════════╤════════════════════════════════════╝
+ ║                    app.py  ·  Camada de UI                   ║
+ ║                                                              ║
+ ║   Entrada do usuário          Cache Streamlit                ║
+ ║  ┌─────────────────────┐    ┌──────────────────────────┐     ║
+ ║  │  st.file_uploader   │    │  @st.cache_data          │     ║
+ ║  │  (Upload .wav)      │───▶│  load_and_process_audio  │     ║
+ ║  └─────────────────────┘    │  get_filter_design       │     ║
+ ║                             │  process_filter          │     ║
+ ║  ┌─────────────────────┐    └────────────┬─────────────┘     ║
+ ║  │  st.sidebar         │                 │                   ║
+ ║  │  Tipo de Filtro     │                 │ chama             ║
+ ║  │  Frequência de Corte│                 ▼                   ║
+ ║  │  Nº de Coeficientes │    ┌──────────────────────────┐     ║
+ ║  └─────────────────────┘    │  Matplotlib / st.pyplot  │     ║
+ ║                             │ Gráficos + Espectrograma │     ║
+ ║                             │  Player + Download .wav  │     ║
+ ║                             └──────────────────────────┘     ║
+ ╚════════════════════════╤═════════════════════════════════════╝
                           │ importa
                           ▼
  ╔══════════════════════════════════════════════════════════════╗
- ║            signal_processing.py  ·  DSP Core               ║
- ║                                                             ║
- ║   Análise do Sinal             Projeto e Aplicação de Filtro║
- ║  ┌──────────────────────┐     ┌──────────────────────────┐  ║
- ║  │  normalize_signal()  │     │  design_fir_filter()     │  ║
- ║  │    → float64, [-1,1] │     │    firwin + Hamming → h[n]│  ║
- ║  │                      │     │                          │  ║
- ║  │  compute_fft()       │     │  apply_fir_filter()      │  ║
- ║  │    → freqs, magnitude│     │    filtfilt → fase zero  │  ║
- ║  └──────────────────────┘     │                          │  ║
- ║         (NumPy)               │  compute_freq_response() │  ║
- ║                               │    freqz → |H(ω)| em dB │  ║
- ║                               │                          │  ║
- ║                               │  calculate_snr()         │  ║
- ║                               │    → IPS em dB           │  ║
- ║                               └──────────────────────────┘  ║
- ║                                        (SciPy)              ║
+ ║            signal_processing.py  ·  DSP Core                 ║
+ ║                                                              ║
+ ║   Análise do Sinal             Projeto e Aplicação de Filtro ║
+ ║  ┌──────────────────────┐     ┌──────────────────────────┐   ║
+ ║  │  normalize_signal()  │     │  design_fir_filter()     │   ║
+ ║  │    → float64, [-1,1] │     │   firwin + Hamming → h[n]│   ║
+ ║  │                      │     │                          │   ║
+ ║  │  compute_fft()       │     │  apply_fir_filter()      │   ║
+ ║  │    → freqs, magnitude│     │    filtfilt → fase zero  │   ║
+ ║  └──────────────────────┘     │                          │   ║
+ ║         (NumPy)               │  compute_freq_response() │   ║
+ ║                               │    freqz → |H(ω)| em dB  │   ║
+ ║                               │                          │   ║
+ ║                               │  calculate_snr()         │   ║
+ ║                               │    → IPS em dB           │   ║
+ ║                               └──────────────────────────┘   ║
+ ║                                        (SciPy)               ║
  ╚══════════════════════════════════════════════════════════════╝
 ```
 
