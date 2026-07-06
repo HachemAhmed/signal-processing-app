@@ -152,43 +152,72 @@ Onde:
 
 ## 🏗️ Arquitetura do Sistema
 
-A aplicação adota arquitetura em **duas camadas** com separação clara de responsabilidades:
+A aplicação é estruturada em **duas camadas com separação estrita de responsabilidades**, seguindo o princípio de *Separation of Concerns*:
+
+- **`signal_processing.py` — Camada de Lógica (DSP Core):** módulo puramente matemático, sem qualquer dependência do Streamlit. Contém todas as funções de processamento de sinais, podendo ser importado, testado e reutilizado de forma totalmente independente da interface.
+- **`app.py` — Camada de Apresentação (UI):** orquestra o fluxo da aplicação, gerencia o estado do Streamlit (via `@st.cache_data`), chama as funções de `signal_processing.py` e renderiza os resultados ao usuário.
+
+Essa separação garante que mudanças na interface (layout, cores, componentes) não afetam a lógica de DSP, e que as funções matemáticas podem ser testadas isoladamente.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                     app.py  (Camada de UI)                   │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────────────┐  ┌───────────┐  │
-│  │  Upload .wav  │  │ Controles Interativos │  │ Matplotlib│  │
-│  │              │  │ Tipo | Corte | Ordem  │  │  Figures  │  │
-│  └──────┬───────┘  └──────────┬───────────┘  └─────▲─────┘  │
-│         │                     │                     │        │
-│         │      ┌──────────────▼─────────────┐       │        │
-│         │      │    Cache (@st.cache_data)   │       │        │
-│         │      │  load_and_process_audio()  │       │        │
-│         │      │  get_filter_design()       │       │        │
-│         │      │  process_filter()          │       │        │
-│         │      └──────────────┬─────────────┘       │        │
-└─────────┼─────────────────────┼─────────────────────┼────────┘
-          │                     │                     │
-          ▼                     ▼                     │
-┌──────────────────────────────────────────────────────────────┐
-│            signal_processing.py  (Camada Lógica)             │
-│                                                              │
-│  ┌───────────────────┐      ┌────────────────────────────┐   │
-│  │  normalize_signal │      │    design_fir_filter       │   │
-│  │  compute_fft      │      │    apply_fir_filter        ├───┘
-│  │                   │      │  compute_frequency_response│
-│  └───────────────────┘      │    calculate_snr           │
-│          NumPy              └────────────────────────────┘
-│                                        SciPy              │
-└──────────────────────────────────────────────────────────────┘
+ ╔══════════════════════════════════════════════════════════════╗
+ ║                    app.py  ·  Camada de UI                  ║
+ ║                                                             ║
+ ║   Entrada do usuário          Cache Streamlit               ║
+ ║  ┌─────────────────────┐    ┌──────────────────────────┐   ║
+ ║  │  st.file_uploader   │    │  @st.cache_data          │   ║
+ ║  │  (Upload .wav)      │───▶│  load_and_process_audio  │   ║
+ ║  └─────────────────────┘    │  get_filter_design       │   ║
+ ║                             │  process_filter          │   ║
+ ║  ┌─────────────────────┐    └────────────┬─────────────┘   ║
+ ║  │  st.sidebar         │                 │                  ║
+ ║  │  Tipo de Filtro     │                 │ chama            ║
+ ║  │  Frequência de Corte│                 ▼                  ║
+ ║  │  Nº de Coeficientes │    ┌──────────────────────────┐   ║
+ ║  └─────────────────────┘    │  Matplotlib / st.pyplot  │   ║
+ ║                             │  Gráficos + Espectrograma │   ║
+ ║                             │  Player + Download .wav  │   ║
+ ║                             └──────────────────────────┘   ║
+ ╚════════════════════════╤════════════════════════════════════╝
+                          │ importa
+                          ▼
+ ╔══════════════════════════════════════════════════════════════╗
+ ║            signal_processing.py  ·  DSP Core               ║
+ ║                                                             ║
+ ║   Análise do Sinal             Projeto e Aplicação de Filtro║
+ ║  ┌──────────────────────┐     ┌──────────────────────────┐  ║
+ ║  │  normalize_signal()  │     │  design_fir_filter()     │  ║
+ ║  │    → float64, [-1,1] │     │    firwin + Hamming → h[n]│  ║
+ ║  │                      │     │                          │  ║
+ ║  │  compute_fft()       │     │  apply_fir_filter()      │  ║
+ ║  │    → freqs, magnitude│     │    filtfilt → fase zero  │  ║
+ ║  └──────────────────────┘     │                          │  ║
+ ║         (NumPy)               │  compute_freq_response() │  ║
+ ║                               │    freqz → |H(ω)| em dB │  ║
+ ║                               │                          │  ║
+ ║                               │  calculate_snr()         │  ║
+ ║                               │    → IPS em dB           │  ║
+ ║                               └──────────────────────────┘  ║
+ ║                                        (SciPy)              ║
+ ╚══════════════════════════════════════════════════════════════╝
 ```
 
-| Camada | Arquivo | Responsabilidade |
+### Responsabilidades por módulo
+
+| Módulo | Camada | Dependências | Funções principais |
+|---|---|---|---|
+| `signal_processing.py` | DSP Core | `numpy`, `scipy` | `normalize_signal`, `compute_fft`, `design_fir_filter`, `apply_fir_filter`, `compute_frequency_response`, `calculate_snr` |
+| `app.py` | UI / Orquestração | `streamlit`, `matplotlib` + `signal_processing` | `load_and_process_audio`, `get_filter_design`, `process_filter` (todos com `@st.cache_data`) |
+
+### Estratégia de cache
+
+O Streamlit re-executa o script inteiro a cada interação do usuário. Para evitar recomputações desnecessárias, as três operações mais custosas são envolvidas por `@st.cache_data`:
+
+| Função com cache | Operação encapsulada | Quando é recalculada |
 |---|---|---|
-| **Interface (UI)** | `app.py` | Upload, controles interativos, renderização de gráficos, cache Streamlit, reprodução e download de áudio |
-| **Lógica Matemática** | `signal_processing.py` | Normalização, FFT, projeto e aplicação de filtros FIR, resposta em frequência, IPS |
+| `load_and_process_audio()` | Leitura do `.wav`, conversão mono, normalização | Apenas quando um novo arquivo é carregado |
+| `get_filter_design()` | `firwin()` → coeficientes `h[n]` | Quando `fs`, `cutoff`, `filter_type` ou `numtaps` mudam |
+| `process_filter()` | `filtfilt()` → sinal filtrado | Quando o sinal ou qualquer parâmetro de filtro muda |
 
 ---
 
